@@ -1,7 +1,7 @@
 streamlit==1.32.0
 pandas==2.2.1
 numpy
-tensorflow==2.20.0
+tensorflow
 scikit-learn==1.5.2
 python-dotenv==1.0.1
 requests==2.31.0
