@@ -13,7 +13,7 @@ MASTER_PATH = BASE.parent / "data" / "historical" / "master_monthly.parquet"
 
 def load_all():
     # 1. Load GRU model
-    model_path = BASE / "gru_model_20260310_194421.h5"
+    model_path = BASE / "gru_model_20260310_194421.keras"
     model = tf.keras.models.load_model(model_path, compile=False)
 
     # 2. Load feature column names from training (36 features)
