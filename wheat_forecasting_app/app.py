@@ -755,7 +755,7 @@ page = st.sidebar.radio("Go to", [
 # ------------------------------------------------------------
 # LOAD DATA + MODEL
 # ------------------------------------------------------------
-MASTER_PATH = "data/historical/master_monthly.parquet"
+MASTER_PATH = "wheat_forecasting_app/data/historical/master_monthly.parquet"
 
 df_master = pd.read_parquet(MASTER_PATH)
 df_master["month"] = pd.to_datetime(df_master["month"])
