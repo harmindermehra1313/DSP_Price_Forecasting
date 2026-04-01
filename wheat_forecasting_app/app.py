@@ -48,17 +48,15 @@ def info_card(label, value, icon="📊", width="100%"):
 # SIDEBAR NAVIGATION
 # ------------------------------------------------------------
 st.sidebar.title("📌 Navigation")
-page = st.sidebar.radio(
-    "Go to",
-    [
-        "Home",
-        "Forecast",
-        "Scenario Simulation",
-        "Data Explorer",
-        "Live Data Status",
-        "About",
-    ],
-)
+page = st.sidebar.radio("Go to", [
+    "Home",
+    "Forecast",
+    "Scenario Simulation",
+    "12-Month Forecast",
+    "Data Explorer",
+    "Live Data Status",
+    "About"
+])
 
 # ------------------------------------------------------------
 # LOAD DATA + MODEL
@@ -338,6 +336,94 @@ elif page == "Scenario Simulation":
     st.markdown(
         f"The scenario changes the predicted price by **{change_pct:.2f}%** compared with the baseline. "
         f"This helps assess sensitivity to the selected shock."
+    )
+
+# ------------------------------------------------------------
+# PAGE — 12-MONTH FORECAST
+# ------------------------------------------------------------
+elif page == "12-Month Forecast":
+    section_header("12‑Month Forecast", "📅")
+
+    st.markdown("""
+    This page generates a 12‑month recursive forecast using the GRU model.
+    """)
+
+    # Get current inputs
+    live_dict = get_sidebar_inputs(last_row)
+
+    # Prepare initial data
+    df_raw = preprocess_raw_data(MASTER_PATH, live_dict)
+
+    # --- STEP 1: Compute next-month prediction (same as Forecast page) ---
+    df_features = build_feature_pipeline(df_raw)
+    predictor = GRUPredictor(model, feature_scaler, target_scaler, feature_columns)
+    result = predictor.predict(df_features)
+
+    next_month_price = result["predicted_price"]
+
+    # --- FIX: Force the next-month date to be based on TODAY ---
+    today = datetime.now().replace(day=1)
+    next_month_date = today + pd.DateOffset(months=1)
+
+    # --- STEP 2: Start recursive forecast from THIS prediction ---
+    predictions = [next_month_price]
+    dates = [next_month_date]
+
+    # Create a temporary dataframe for recursive forecasting
+    df_temp = df_raw.copy()
+
+    # Append the next-month prediction as the new starting point
+    start_row = df_temp.iloc[-1].copy()
+    start_row["india_price"] = next_month_price
+    start_row.name = next_month_date
+    df_temp = pd.concat([df_temp, start_row.to_frame().T])
+
+    # --- STEP 3: Forecast the remaining 11 months ---
+    for i in range(11):
+        df_features = build_feature_pipeline(df_temp)
+        result = predictor.predict(df_features)
+
+        pred_price = result["predicted_price"]
+        next_date = dates[-1] + pd.DateOffset(months=1)
+
+        predictions.append(pred_price)
+        dates.append(next_date)
+
+        next_row = df_temp.iloc[-1].copy()
+        next_row["india_price"] = pred_price
+        next_row.name = next_date
+        df_temp = pd.concat([df_temp, next_row.to_frame().T])
+
+    # --- Display chart ---
+    st.markdown("### 📈 12‑Month Forecast Trend")
+    forecast_df = pd.DataFrame({"Predicted Price": predictions}, index=dates)
+    st.line_chart(forecast_df)
+
+    # --- Display table ---
+    st.markdown("### 📋 Forecast Table")
+    st.dataframe(forecast_df.style.format("{:.2f}"), use_container_width=True)
+
+    # --- Interpretation ---
+    st.markdown("### 🧠 Interpretation")
+    pct_change = ((predictions[-1] - predictions[0]) / predictions[0]) * 100
+
+    trend = (
+        "an upward trend" if pct_change > 0
+        else "a downward trend" if pct_change < 0
+        else "a stable trend"
+    )
+
+    st.markdown(
+        f"""
+        The model forecasts **{trend}** over the next 12 months.
+        
+        - Starting price: **₹{predictions[0]:.2f}**
+        - Ending price: **₹{predictions[-1]:.2f}**
+        - Change over 12 months: **{pct_change:.2f}%**
+
+        These values represent model‑based estimates and should be interpreted as 
+        directional guidance rather than exact future prices.
+        """
     )
 
 # ------------------------------------------------------------
