@@ -1,91 +1,38 @@
 
 import pandas as pd
 
-# def preprocess_raw_data(master_path, live_dict):
-#     """
-#     Load master_monthly.parquet and inject scenario values
-#     into the LAST ROW only.
-#     """
-#     df = pd.read_parquet(master_path)
-
-#     df["month"] = pd.to_datetime(df["month"])
-#     df = df.set_index("month")
-
-#     if "return" not in df.columns:
-#         df["return"] = df["india_price"].pct_change()
-
-#     df = df.dropna(subset=["return"])
-
-#     df = df.copy()
-#     for key, value in live_dict.items():
-#         if key in df.columns:
-#             df.iloc[-1, df.columns.get_loc(key)] = value
-
-#     df = df.ffill().bfill()
-
-#     return df
-
 def preprocess_raw_data(master_path, live_dict):
     """
     Load master_monthly.parquet and inject scenario values
-    into the LAST ROW only.
+    ONLY into the last row, without altering historical prices.
     """
     df = pd.read_parquet(master_path)
 
     df["month"] = pd.to_datetime(df["month"])
     df = df.set_index("month")
 
-    # FIX NAN VALUES IN IMPORTANT COLUMNS
-    df["rainfall"] = df["rainfall"].fillna(df["rainfall"].mean())
-    df["temperature"] = df["temperature"].fillna(df["temperature"].mean())
+    # Fix only non-price NaNs
+    for col in ["rainfall", "temperature"]:
+        if col in df.columns:
+            df[col] = df[col].fillna(df[col].mean())
 
+    # Compute return if missing
     if "return" not in df.columns:
         df["return"] = df["india_price"].pct_change()
 
-    df = df.dropna(subset=["return"])
+    # Drop rows where india_price is missing
+    df = df.dropna(subset=["india_price"])
 
-    # Inject scenario values into last row
-    df = df.copy()
+    # Identify the TRUE last month
+    last_idx = df.index[-1]
+
+    # Inject scenario values ONLY into last row
     for key, value in live_dict.items():
-        if key in df.columns:
-            df.iloc[-1, df.columns.get_loc(key)] = value
+        if key in df.columns and key != "india_price":
+            df.loc[last_idx, key] = value
 
-    # Final cleanup
-    df = df.ffill().bfill()
+    # Do NOT ffill/bfill entire dataframe
+    # Only fill missing scenario values in last row if needed
+    df.loc[last_idx] = df.loc[last_idx].fillna(method="ffill")
 
     return df
-
-# def preprocess_raw_data(master_path, live_dict):
-#     """
-#     Load master_monthly.parquet and inject scenario values
-#     into the LAST ROW only.
-#     """
-#     df = pd.read_parquet(master_path)
-
-#     df["month"] = pd.to_datetime(df["month"])
-#     df = df.set_index("month")
-
-#     # FIX NAN VALUES USING SEASONAL AVERAGES
-#     df["rainfall"] = df["rainfall"].fillna(
-#         df["rainfall"].groupby(df.index.month).transform("mean")
-#     )
-
-#     df["temperature"] = df["temperature"].fillna(
-#         df["temperature"].groupby(df.index.month).transform("mean")
-#     )
-
-#     if "return" not in df.columns:
-#         df["return"] = df["india_price"].pct_change()
-
-#     df = df.dropna(subset=["return"])
-
-#     # Inject scenario values into last row
-#     df = df.copy()
-#     for key, value in live_dict.items():
-#         if key in df.columns:
-#             df.iloc[-1, df.columns.get_loc(key)] = value
-
-#     # Final cleanup
-#     df = df.ffill().bfill()
-
-#     return df
